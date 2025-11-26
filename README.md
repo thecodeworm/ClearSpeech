@@ -1,1 +1,1 @@
-Clear Speech Science Fair
+Clear Speech Project Details
