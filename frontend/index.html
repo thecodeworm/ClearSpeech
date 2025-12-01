@@ -1,1 +1,100 @@
-ECHO is on.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClearSpeechAudio - Professional Audio Transcription</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">🎙️</div>
+                    <span>ClearSpeechAudio</span>
+                </div>
+                <nav>
+                    <a href="#" class="active">Home</a>
+                    <a href="#">Features</a>
+                    <a href="#">About</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Professional Audio Transcription</h1>
+            <p>Transform your audio into accurate text or clean audio files with advanced AI processing</p>
+        </div>
+    </section>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="card">
+                <!-- Upload Section -->
+                <div class="upload-section">
+                    <h2 class="section-title">Upload Audio</h2>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">Drop your audio file here or click to browse</div>
+                        <div class="upload-subtext">Supports MP3, WAV, M4A, OGG (Max 100MB)</div>
+                    </div>
+                    <input type="file" id="audioFile" accept="audio/*">
+                    <div id="fileName" style="margin-top: 16px; text-align: center; color: var(--success); font-weight: 600;"></div>
+                </div>
+
+                <!-- Microphone Section -->
+                <div class="mic-section">
+                    <h2 class="section-title">Or Record Audio</h2>
+                    <div class="mic-controls">
+                        <button class="mic-button" id="micButton">🎤</button>
+                        <div class="mic-status" id="micStatus">Click to start recording</div>
+                    </div>
+                </div>
+
+                <!-- Options Section -->
+                <div class="options-section">
+                    <h2 class="section-title">Processing Options</h2>
+                    <div class="option-group">
+                        <label for="outputType">Output Type</label>
+                        <select id="outputType">
+                            <option value="text">Transcribed Text</option>
+                            <option value="audio">Clean Audio</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Process Button -->
+                <button class="process-button" id="processButton" disabled>Process Audio</button>
+
+                <!-- Loading -->
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Processing your audio...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div class="results-section" id="resultsSection">
+                    <h2 class="section-title">Results</h2>
+                    <div class="result-content">
+                        <div id="transcriptionResult" class="transcription-text"></div>
+                        <div id="audioResult" style="display: none;">
+                            <audio controls style="width: 100%; margin-bottom: 16px;"></audio>
+                            <button class="download-button" id="downloadButton">Download Audio</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>ClearSpeechAudio</p>
+        </div>
+    </footer>
+</body>
+</html>
