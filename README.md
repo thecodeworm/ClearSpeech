@@ -1,1 +1,1 @@
-"Clear Speech ML Model" 
+Science Fair Project: Clear Speech
