@@ -1,3 +1,10 @@
+"""
+Audio Preprocessing Pipeline for Speech Enhancement
+Loads VoiceBank-DEMAND dataset and prepares it for CNN training
+
+Dataset: https://huggingface.co/datasets/JacobLinCool/VoiceBank-DEMAND-16k
+"""
+
 import os
 import numpy as np
 import librosa
@@ -11,7 +18,7 @@ import json
 # ============================================================================
 
 class Config:
-    """Centralized configuration for preprocessing"""
+    #Centralized configuration for preprocessing
     
     # Dataset settings
     DATASET_NAME = "JacobLinCool/VoiceBank-DEMAND-16k"
@@ -25,19 +32,23 @@ class Config:
     HOP_LENGTH = 256  # Number of samples between frames
     N_MELS = 128  # Number of mel bands
     
-    # Output paths
-    OUTPUT_DIR = Path("data/processed")
+    # Output paths (adjusted for backend/utils/ location)
+    # This script is in: backend/utils/preprocessing.py
+    # So we go up 2 levels (../../) to reach project root
+    PROJECT_ROOT = Path(__file__).parent.parent.parent
+    OUTPUT_DIR = PROJECT_ROOT / "data"
     RAW_AUDIO_DIR = OUTPUT_DIR / "audio_raw"
     CLEAN_AUDIO_DIR = OUTPUT_DIR / "audio_clean"
-    NOISY_SPEC_DIR = OUTPUT_DIR / "spectrograms/noisy"
-    CLEAN_SPEC_DIR = OUTPUT_DIR / "spectrograms/clean"
-    METADATA_FILE = OUTPUT_DIR / "metadata.json"
+    NOISY_SPEC_DIR = OUTPUT_DIR / "spectrograms" / "noisy"
+    CLEAN_SPEC_DIR = OUTPUT_DIR / "spectrograms" / "clean"
+    METADATA_FILE = PROJECT_ROOT / "data" / "metadata" / "metadata.json"
     
     @classmethod
     def create_directories(cls):
-        """Create all necessary output directories"""
+        #Create all necessary output directories
         for directory in [cls.RAW_AUDIO_DIR, cls.CLEAN_AUDIO_DIR, 
-                         cls.NOISY_SPEC_DIR, cls.CLEAN_SPEC_DIR]:
+                         cls.NOISY_SPEC_DIR, cls.CLEAN_SPEC_DIR,
+                         cls.METADATA_FILE.parent]:
             directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -184,17 +195,21 @@ def load_voicebank_dataset(num_samples=1500):
         dataset: HuggingFace dataset with train split
     """
     try:
-        from datasets import load_dataset
+        from datasets import load_dataset, Audio
     except ImportError:
         raise ImportError("Install datasets: pip install datasets")
     
     print(f"Loading VoiceBank-DEMAND-16k dataset (first {num_samples} samples)...")
     
-    # Load dataset - this version is pre-processed at 16kHz
+    # Load dataset with decode=False to avoid torchcodec requirement
     dataset = load_dataset(
         "JacobLinCool/VoiceBank-DEMAND-16k",
         split=f"train[:{num_samples}]"
     )
+    
+    # Set audio columns to not decode automatically
+    dataset = dataset.cast_column("clean", Audio(decode=False))
+    dataset = dataset.cast_column("noisy", Audio(decode=False))
     
     print(f"Loaded {len(dataset)} samples")
     print(f"Dataset features: {dataset.features}")
@@ -214,14 +229,31 @@ def process_single_sample(sample, idx, config):
         metadata: Dictionary with processing info
     """
     try:
-        # Extract audio arrays from dataset
-        # JacobLinCool dataset structure: sample has 'noisy' and 'clean' keys
-        # Each contains 'array' (waveform) and 'sampling_rate'
-        noisy_audio = np.array(sample['noisy']['array'])
-        clean_audio = np.array(sample['clean']['array'])
+        # Extract audio data - with decode=False, we get paths or bytes
+        # Load audio manually using soundfile
+        import io
         
-        # Get sample rate (should already be 16kHz)
-        sr = sample['noisy']['sampling_rate']
+        # Get audio bytes from the dataset
+        noisy_data = sample['noisy']
+        clean_data = sample['clean']
+        
+        # Load audio from bytes using soundfile
+        if 'bytes' in noisy_data:
+            noisy_audio, sr_noisy = sf.read(io.BytesIO(noisy_data['bytes']))
+            clean_audio, sr_clean = sf.read(io.BytesIO(clean_data['bytes']))
+        elif 'path' in noisy_data and noisy_data['path']:
+            # If we have file paths instead
+            noisy_audio, sr_noisy = sf.read(noisy_data['path'])
+            clean_audio, sr_clean = sf.read(clean_data['path'])
+        else:
+            # Fall back to array if available
+            noisy_audio = np.array(noisy_data['array'])
+            clean_audio = np.array(clean_data['array'])
+            sr_noisy = noisy_data['sampling_rate']
+            sr_clean = clean_data['sampling_rate']
+        
+        # Use the noisy sample rate (should be 16kHz)
+        sr = sr_noisy
         
         # Verify sample rate (dataset should already be 16kHz)
         if sr != config.SAMPLE_RATE:
@@ -285,6 +317,8 @@ def process_single_sample(sample, idx, config):
         
     except Exception as e:
         print(f"Error processing sample {idx}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -299,7 +333,7 @@ def process_dataset(dataset, config):
     Returns:
         metadata_list: List of metadata dicts
     """
-    print(f"\nProcessing {len(dataset)} samples...")
+    print(f"\n🔄 Processing {len(dataset)} samples...")
     
     metadata_list = []
     
@@ -348,8 +382,8 @@ def split_and_save_metadata(metadata_list, config):
         json.dump(metadata, f, indent=2)
     
     print(f"\nSaved metadata to {config.METADATA_FILE}")
-    print(f"Training samples: {len(train_data)}")
-    print(f"Validation samples: {len(val_data)}")
+    print(f"   Training samples: {len(train_data)}")
+    print(f"   Validation samples: {len(val_data)}")
 
 
 # ============================================================================
@@ -357,10 +391,10 @@ def split_and_save_metadata(metadata_list, config):
 # ============================================================================
 
 def main():
-    """Main preprocessing pipeline"""
+    #Main preprocessing pipeline
     
     print("="*70)
-    print("SPEECH ENHANCEMENT - DATA PREPROCESSING")
+    print("🎙️  SPEECH ENHANCEMENT - DATA PREPROCESSING")
     print("="*70)
     
     # Initialize config
@@ -382,10 +416,11 @@ def main():
     print(f"Output directory: {config.OUTPUT_DIR}")
     print(f"Audio files: {len(metadata_list)} pairs saved")
     print(f"Spectrograms: {len(metadata_list)} pairs saved")
+    print("\nNext steps:")
+    print("  1. Review data in output directories")
+    print("  2. Run CNN training script")
     print("="*70)
 
 
 if __name__ == "__main__":
     main()
-
-# preprocessing script end
