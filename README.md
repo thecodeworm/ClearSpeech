@@ -1,1 +1,0 @@
-Science Fair Project: Clear Speech
