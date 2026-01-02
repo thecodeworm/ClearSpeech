@@ -1,0 +1,175 @@
+# ============================================================================
+# DATA FILES (Don't upload large files to Git!)
+# ============================================================================
+
+# Raw and processed audio
+data/audio_raw/
+data/audio_clean/
+data/spectrograms/
+data/processed/
+data/metadata/metadata.json
+
+# Audio files anywhere in project
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+
+# Numpy arrays (spectrograms)
+*.npy
+*.npz
+
+# Large model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# HuggingFace cache
+**/.cache/
+**/huggingface/
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+
+# Byte-compiled / optimized
+__pycache__/
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# ============================================================================
+# LOGS & DATABASES
+# ============================================================================
+
+*.log
+*.sql
+*.sqlite
+*.db
+
+# TensorBoard logs
+runs/
+logs/
+tensorboard/
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+
+# Don't commit model checkpoints (too large)
+enhancement_model/checkpoints/best_model.pt
+enhancement_model/checkpoints/final_model.pt
+asr_model/checkpoints/*.pt
+
+# Keep checkpoint directory but not the files
+!enhancement_model/checkpoints/.gitkeep
+!asr_model/checkpoints/.gitkeep
+
+# Configuration files with secrets
+*.env
+.env.local
+config/secrets.json
+
+# Downloaded datasets
+downloads/
+datasets/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Metadata generated during processing
+metadata.json
+stats.json
