@@ -1,9 +1,35 @@
 <!DOCTYPE html>
+
+<!--
+MIT License
+
+Copyright (c) 2026 Aditya Chanda
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClearSpeechAudio - Professional Audio Transcription</title>
+    <title>ClearSpeech - Professional Audio Transcription</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,13 +38,12 @@
             <div class="header-content">
                 <div class="logo">
                     <div class="logo-icon">🎙️</div>
-                    <span>ClearSpeechAudio</span>
+                    <span>ClearSpeech</span>
                 </div>
                 <nav>
                     <a href="#home" class="nav-link active">Home</a>
                     <a href="#features" class="nav-link">Features</a>
                     <a href="#about" class="nav-link">About Us</a>
-                    <!-- ensurement of the nav bar reliability -->
                     <a href="#contact" class="nav-link">Contact</a>
                 </nav>
             </div>
@@ -58,18 +83,6 @@
                         </div>
                     </div>
 
-                    <!-- Options Section -->
-                    <div class="options-section">
-                        <h2 class="section-title">Processing Options</h2>
-                        <div class="option-group">
-                            <label for="outputType">Output Type</label>
-                            <select id="outputType">
-                                <option value="text">Transcribed Text</option>
-                                <option value="audio">Clean Audio</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <!-- Process Button -->
                     <button class="process-button" id="processButton" disabled>Process Audio</button>
 
@@ -101,7 +114,15 @@
             <div class="content-wrapper">
                 <h1 class="page-title">Features</h1>
                 <div class="content-card">
-                    <p>FUTURE FEATURES SECTION WILL BE ADDED HERE AFTER ADITYA AND JOSH MEETING</p>
+                    <h3>Features</h3>
+                    <ul class="feature_list">
+                        <li>AI-Powered Noise Reduction: Custom U-Net model trained to remove background noise</li>
+                        <li>Automatic Transcription: Whisper integration for accurate speech-to-text</li>
+                        <li>Fast Processing: Optimized pipeline with GPU support</li>
+                        <li>REST API: Easy-to-use FastAPI backend</li>
+                        <li>High Quality: Val loss of 0.031</li>
+                        <li>Flexible: Enhancement-only, transcription-only, or both</li>
+                    </ul>
                 </div>
             </div>
         </div>
@@ -113,11 +134,13 @@
             <div class="content-wrapper">
                 <h1 class="page-title">About Us</h1>
                 <div class="content-card">
-                    <p>We are a Science Fair Group set out to make other people's lives better by making this app.
-                        We consist of 3 people, Aditya, Josh, and Advik, and all three of us attend Quail Valley Middle School.
-                        The objective of the project was to make an AI model to clear up distorted or slurred speech, caused by technical issues, speech disorders and any other problem that could cause them.
-                        The model went through a lot of work as we coded, and trained it ourselves and are proud with the outcome.
-                        We put a lot of work into this, hope it proves useful, thank you for using our product.</p>
+                    <p>We are a Science Fair group dedicated to improving people’s lives through technology, and this application is the result of that goal. Our team consists of three students—Aditya, Josh, and Advik—and we all attend Quail Valley Middle School.
+
+The objective of this project was to design and develop an AI model capable of clarifying distorted or slurred speech. Such speech issues can arise from technical limitations, environmental interference, speech disorders, or other conditions that affect clarity and intelligibility. Our aim was to create a tool that can help make spoken communication more accessible and easier to understand.
+
+Throughout this project, we invested significant time and effort into researching, coding, testing, and training the model ourselves. The development process involved overcoming numerous challenges, refining our approach, and continuously improving accuracy and performance. We are proud of the progress we have made and the results achieved.
+
+This project represents months of dedication and collaboration, and we hope that this application proves useful to others. Thank you for taking the time to explore and use our work.</p>
                 </div>
             </div>
         </div>
@@ -130,10 +153,7 @@
                 <h1 class="page-title">Contact</h1>
                 <div class="content-card">
                     <p>To contact our group to ask questions, give reviews, give suggestions and more, use the following respective emails. <br>
-                    Advik: adviksingh2020@gmail.com <br>
-                    Josh: <br>
-                    Aditya: <br>
-                    (possible future group email (pretty sure we already have one))</p>
+                    clearspeechinnovations@gmail.com</p>
                 </div>
             </div>
         </div>
@@ -141,11 +161,11 @@
 
     <footer>
         <div class="container">
-            <p>&copy; 2024 ClearSpeechAudio.</p>
+            <p>Copyright (c) 2026 Aditya Chanda</p>
         </div>
     </footer>
 
-    <script src="recorder.js"></script>
-    <script src="script.js"></script>
+    <script src="recorder.js" defer></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
