@@ -16,5 +16,5 @@ scipy>=1.10.0
 pandas>=2.0.0
 seaborn>=0.12.0
 matplotlib>=3.7.0
-pesq>=0.4.0
+https://github.com/ludlows/python-pesq/archive/master.zip
 pystoi>=0.3.0
