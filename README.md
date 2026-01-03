@@ -82,7 +82,7 @@ hf_hub_download(
  1. Make your own WAV sample
  2. Run the generate_noisy_samples.py file on the sample to make the audio noisier to test the model
  ```
- # Generate all noise types at multiple SNR levels
+ # Generate all noise types at multiple SNR levvels
 python generate_noisy_samples.py \
   --input my_clean_voice.wav \
   --output test_samples/
@@ -98,6 +98,13 @@ python generate_noisy_samples.py \
 python -m backend.app
 ```
 Server starts at `http://localhost:8000`
+
+**Start the server:**
+```
+cd frontend
+python -m http.server 3000
+```
+Frontend starts at `http://localhost:3000`
 
 **Process audio:**
 ```
