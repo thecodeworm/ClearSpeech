@@ -18,3 +18,4 @@ seaborn>=0.12.0
 matplotlib>=3.7.0
 https://github.com/ludlows/python-pesq/archive/master.zip
 pystoi>=0.3.0
+datasets>=2.13.1
