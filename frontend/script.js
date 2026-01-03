@@ -1,6 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
 
     // =====================
+    // API Configuration
+    // =====================
+    const API_URL = 'http://localhost:8000';  // TODO: Change to deployed URL in production
+
+    // =====================
     // State management
     // =====================
     let audioFileData = null;
@@ -14,7 +19,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileName = document.getElementById('fileName');
     const micButton = document.getElementById('micButton');
     const micStatus = document.getElementById('micStatus');
-    const outputType = document.getElementById('outputType');
     const processButton = document.getElementById('processButton');
     const loading = document.getElementById('loading');
     const resultsSection = document.getElementById('resultsSection');
@@ -22,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const audioResult = document.getElementById('audioResult');
 
     // =====================
-    // Navigation (FIXED)
+    // Navigation
     // =====================
     const navLinks = document.querySelectorAll('.nav-link');
     const sections = document.querySelectorAll('.page-section');
@@ -92,11 +96,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    window.onRecordingComplete = (audioBlob) => {
-        recordedAudio = audioBlob;
-        audioFileData = null;
-        fileName.textContent = '✓ Audio recorded successfully';
-        processButton.disabled = false;
+    window.onRecordingComplete = async (audioBlob) => {
+        try {
+            // Convert webm/ogg blob to WAV using Web Audio API
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Convert to WAV
+            const wavBlob = await audioBufferToWav(audioBuffer);
+            
+            recordedAudio = new File([wavBlob], 'recording.wav', { type: 'audio/wav' });
+            audioFileData = null;
+            fileName.textContent = '✓ Audio recorded successfully';
+            processButton.disabled = false;
+        } catch (error) {
+            console.error('Error processing recorded audio:', error);
+            alert('Error processing recording. Please try again.');
+        }
     };
 
     // =====================
@@ -107,49 +124,125 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!audioData) return;
 
         const formData = new FormData();
-        formData.append('audio', audioData);
-        formData.append('output_type', outputType.value);
+        formData.append('file', audioData);
+        formData.append('language', 'en');
 
         loading.classList.add('active');
         resultsSection.classList.remove('active');
         processButton.disabled = true;
 
         try {
-            const response = await fetch('/api/process', {
+            // Call your ClearSpeech backend API
+            const response = await fetch(`${API_URL}/process`, {
                 method: 'POST',
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Processing failed');
-
-            if (outputType.value === 'text') {
-                const data = await response.json();
-                transcriptionResult.textContent = data.transcription;
-                transcriptionResult.parentElement.style.display = 'block';
-                audioResult.style.display = 'none';
-            } else {
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const audio = audioResult.querySelector('audio');
-                audio.src = url;
-
-                transcriptionResult.parentElement.style.display = 'none';
-                audioResult.style.display = 'block';
-
-                document.getElementById('downloadButton').onclick = () => {
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'processed_audio.wav';
-                    a.click();
-                };
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Processing failed');
             }
 
+            const data = await response.json();
+
+            console.log('Backend response:', data);
+
+            // Display transcript
+            transcriptionResult.textContent = data.transcript;
+            transcriptionResult.parentElement.style.display = 'block';
+
+            // Set up enhanced audio player
+            const audioElement = audioResult.querySelector('audio');
+            audioElement.src = `${API_URL}${data.enhanced_audio_url}`;
+            audioResult.style.display = 'block';
+
+            // Setup download button
+            document.getElementById('downloadButton').onclick = () => {
+                const a = document.createElement('a');
+                a.href = `${API_URL}${data.enhanced_audio_url}`;
+                a.download = 'enhanced_audio.wav';
+                a.click();
+            };
+
             resultsSection.classList.add('active');
+
         } catch (err) {
-            alert('Error processing audio: ' + err.message);
+            console.error('Processing error:', err);
+            alert('Error processing audio: ' + err.message + '\n\nPlease make sure the backend server is running.');
         } finally {
             loading.classList.remove('active');
             processButton.disabled = false;
         }
     });
+
+    // =====================
+    // Helper Functions for WAV Conversion
+    // =====================
+    
+    function audioBufferToWav(audioBuffer) {
+        const numberOfChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const format = 1; // PCM
+        const bitDepth = 16;
+        
+        const bytesPerSample = bitDepth / 8;
+        const blockAlign = numberOfChannels * bytesPerSample;
+        
+        const data = [];
+        for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
+            data.push(audioBuffer.getChannelData(i));
+        }
+        
+        const interleaved = interleave(data);
+        const dataLength = interleaved.length * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataLength);
+        const view = new DataView(buffer);
+        
+        // Write WAV header
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + dataLength, true);
+        writeString(view, 8, 'WAVE');
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, format, true);
+        view.setUint16(22, numberOfChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * blockAlign, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, bitDepth, true);
+        writeString(view, 36, 'data');
+        view.setUint32(40, dataLength, true);
+        
+        // Write audio data
+        floatTo16BitPCM(view, 44, interleaved);
+        
+        return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function interleave(channelData) {
+        const length = channelData[0].length;
+        const numberOfChannels = channelData.length;
+        const result = new Float32Array(length * numberOfChannels);
+        
+        let offset = 0;
+        for (let i = 0; i < length; i++) {
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+                result[offset++] = channelData[channel][i];
+            }
+        }
+        return result;
+    }
+
+    function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
+
+    function floatTo16BitPCM(view, offset, input) {
+        for (let i = 0; i < input.length; i++, offset += 2) {
+            const s = Math.max(-1, Math.min(1, input[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+    }
 });
