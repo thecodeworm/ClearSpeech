@@ -78,6 +78,15 @@ hf_hub_download(
 )
 "
 ```
+### Step 5: Generate Noisy Samples
+ 1. Make your own WAV sample
+ 2. Run the generate_noisy_samples.py file on the sample to make the audio noisier to test the model
+ ```
+ # Generate all noise types at multiple SNR levels
+python generate_noisy_samples.py \
+  --input my_clean_voice.wav \
+  --output test_samples/
+  ```
 
 
 ## ⚡ Quick Start
