@@ -4,10 +4,9 @@
 
 ClearSpeech uses a custom U-Net deep learning model to remove background noise from audio, then transcribes the enhanced audio using OpenAI's Whisper. Perfect for cleaning up voice recordings, meeting audio, podcasts, or any noisy speech.
 
-**🌐 Live Demo**: https://clearspeech.yourdomain.com  
-**📦 API Endpoint**: `https://api.clearspeech.yourdomain.com`
+**🌐 Live Website (will be updated)**: https://clearspeech.yourdomain.com 
 
----
+
 
 ## 🌟 Features
 
@@ -18,7 +17,6 @@ ClearSpeech uses a custom U-Net deep learning model to remove background noise f
 - 🎯 **High Quality**: Val loss of 0.031
 - 🔧 **Flexible**: Enhancement-only, transcription-only, or both
 
----
 
 ## 📋 Table of Contents
 
@@ -66,15 +64,21 @@ pip install -r backend/requirements.txt
 pip install -r enhancement_model/requirements.txt
 ```
 ### Step 4: Download Pretrained Model
-Option A: Use our pretrained model
 ```
-# Download from releases wget 
-https://github.com/yourusername/clearspeech/releases/download/v1.0/best_model.pt 
-mv best_model.pt enhancement_model/checkpoints/ 
-```
-Option B: Train your own
+# Install huggingface-hub
+pip install huggingface-hub
 
----
+# Download model
+python -c "
+from huggingface_hub import hf_hub_download
+hf_hub_download(
+    repo_id='thecodeworm/clearspeech-unet',
+    filename='best_model.pt',
+    local_dir='enhancement_model/checkpoints/'
+)
+"
+```
+
 
 ## ⚡ Quick Start
 
@@ -266,6 +270,7 @@ black backend/ enhancement_model/
 
 ## 📧 Contact
 **Project Maintainers**: Aditya Chanda, Josh Pal, Advik Kumar Singh
+
 **Project Link**: [https://github.com/thecodeworm/ClearSpeech](https://github.com/thecodeworm/ClearSpeech)
 
 ## ⭐ Show Your Support
