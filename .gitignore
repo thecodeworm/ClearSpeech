@@ -36,6 +36,8 @@ data/metadata/metadata.json
 # ============================================================================
 
 # Byte-compiled / optimized
+backend/__pycache__
+enhancement_model/__pycache__/
 __pycache__/
 __pycache__
 *.py[cod]
