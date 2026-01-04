@@ -1,10 +1,10 @@
 """
-FastAPI Backend with TTS Option
+FastAPI Backend - DEPLOYMENT READY
 Provides REST API endpoints for audio processing + Text-to-Speech
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import soundfile as sf
@@ -14,10 +14,18 @@ from pathlib import Path
 import logging
 from typing import Optional
 import time
-import json
-import io
+from collections import defaultdict
+from datetime import datetime, timedelta
+import asyncio
 
-from .inference_pipeline import EnhancementPipeline
+# IMPORTANT: Use relative import for package
+try:
+    from .inference_pipeline import EnhancementPipeline
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from inference_pipeline import EnhancementPipeline
 
 # Setup logging
 logging.basicConfig(
@@ -28,10 +36,19 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent.resolve()
 
+# Security: Allowed file types
+ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm'}
+ALLOWED_MIMETYPES = {
+    'audio/wav', 'audio/wave', 'audio/x-wav',
+    'audio/mpeg', 'audio/mp3',
+    'audio/mp4', 'audio/m4a', 'audio/x-m4a',
+    'audio/ogg', 'audio/flac', 'audio/webm'
+}
+
 # Initialize FastAPI app
 app = FastAPI(
-    title="Speech Enhancement API with TTS",
-    description="API for audio enhancement, transcription, and text-to-speech",
+    title="ClearSpeech API",
+    description="Speech Enhancement, Transcription & Text-to-Speech",
     version="2.1.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -50,18 +67,110 @@ app.add_middleware(
 pipeline = None
 temp_files = {}
 
+
+# ============================================================================
+# SECURITY: Rate Limiting & File Validation
+# ============================================================================
+
+class SimpleRateLimiter:
+    """Simple in-memory rate limiter for demo protection"""
+    def __init__(self, max_requests: int = 10, window_minutes: int = 60):
+        self.max_requests = max_requests
+        self.window = timedelta(minutes=window_minutes)
+        self.requests = defaultdict(list)
+        self.lock = asyncio.Lock()
+    
+    async def check_rate_limit(self, client_ip: str) -> bool:
+        async with self.lock:
+            now = datetime.now()
+            self.requests[client_ip] = [
+                ts for ts in self.requests[client_ip]
+                if now - ts < self.window
+            ]
+            
+            if len(self.requests[client_ip]) >= self.max_requests:
+                return False
+            
+            self.requests[client_ip].append(now)
+            return True
+    
+    async def cleanup(self):
+        while True:
+            await asyncio.sleep(3600)
+            async with self.lock:
+                now = datetime.now()
+                for ip in list(self.requests.keys()):
+                    self.requests[ip] = [ts for ts in self.requests[ip] if now - ts < self.window]
+                    if not self.requests[ip]:
+                        del self.requests[ip]
+
+
+rate_limiter = SimpleRateLimiter(max_requests=10, window_minutes=60)
+
+
+def get_client_ip(request: Request) -> str:
+    """Get client IP from request"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+    return request.client.host if request.client else "unknown"
+
+
+def validate_audio_file(file: UploadFile) -> None:
+    """Validate uploaded file is a safe audio file"""
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type '{file_ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+    
+    if file.content_type and file.content_type not in ALLOWED_MIMETYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid content type: {file.content_type}"
+        )
+    
+    if '..' in file.filename or '/' in file.filename or '\\' in file.filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+
 # Configuration
 class Config:
-    CNN_CHECKPOINT = (BASE_DIR / "../enhancement_model/checkpoints/best_model.pt").resolve()
+    # FIXED: Use the correct trained model checkpoint
+    CNN_CHECKPOINT = (BASE_DIR / "../enhancement_model/checkpoints/best_model_fixed.pt").resolve()
     WHISPER_MODEL = "base"
-    DEVICE = "cpu"
+    DEVICE = "cpu"  # Change to "cuda" or "mps" if you have GPU
     USE_FP16 = False
-    MAX_FILE_SIZE = 50 * 1024 * 1024
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
     TEMP_DIR = Path(tempfile.gettempdir()) / "clearspeech"
     
     @classmethod
     def setup(cls):
         cls.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Verify checkpoint exists
+        if not cls.CNN_CHECKPOINT.exists():
+            logger.warning(f"⚠️  Checkpoint not found: {cls.CNN_CHECKPOINT}")
+            logger.warning(f"   Looking for alternative checkpoints...")
+            
+            # Try alternative names
+            checkpoint_dir = cls.CNN_CHECKPOINT.parent
+            alternatives = [
+                "best_model.pt",
+                "best_model_perceptual.pt",
+                "final_model_fixed.pt"
+            ]
+            
+            for alt in alternatives:
+                alt_path = checkpoint_dir / alt
+                if alt_path.exists():
+                    logger.info(f"✅ Found alternative: {alt}")
+                    cls.CNN_CHECKPOINT = alt_path
+                    break
 
 
 # Response models
@@ -71,7 +180,23 @@ class ProcessResponse(BaseModel):
     duration: float
     language: str
     enhanced_audio_url: str
-    tts_audio_url: Optional[str] = None  # NEW: TTS option
+    tts_audio_url: Optional[str] = None
+    segments: list = []
+    processing_time: float
+
+
+class EnhanceResponse(BaseModel):
+    success: bool
+    enhanced_audio_url: str
+    duration: float
+    processing_time: float
+
+
+class TranscribeResponse(BaseModel):
+    success: bool
+    transcript: str
+    duration: float
+    language: str
     segments: list = []
     processing_time: float
 
@@ -88,20 +213,23 @@ class HealthResponse(BaseModel):
     cnn_checkpoint: str
     whisper_model: str
     device: str
-    tts_available: bool  # NEW
+    tts_available: bool
 
 
 @app.on_event("startup")
 async def startup_event():
     """Load models on server startup"""
     global pipeline
-    logger.info("🚀 Starting server and loading models...")
+    logger.info("🚀 Starting ClearSpeech API Server...")
     
     try:
         Config.setup()
         
         if not Config.CNN_CHECKPOINT.exists():
-            raise FileNotFoundError(f"CNN checkpoint not found: {Config.CNN_CHECKPOINT}")
+            raise FileNotFoundError(
+                f"CNN checkpoint not found: {Config.CNN_CHECKPOINT}\n"
+                f"Please train the model first or place a checkpoint at this location."
+            )
         
         pipeline = EnhancementPipeline(
             cnn_checkpoint_path=str(Config.CNN_CHECKPOINT),
@@ -109,9 +237,10 @@ async def startup_event():
             device=Config.DEVICE,
             use_fp16=Config.USE_FP16
         )
+        
         logger.info("✅ Models loaded successfully!")
-        logger.info(f"📍 Checkpoint: {Config.CNN_CHECKPOINT}")
-        logger.info(f"📍 Whisper: {Config.WHISPER_MODEL}")
+        logger.info(f"📍 CNN Checkpoint: {Config.CNN_CHECKPOINT}")
+        logger.info(f"📍 Whisper Model: {Config.WHISPER_MODEL}")
         logger.info(f"📍 Device: {Config.DEVICE}")
         
         # Check TTS availability
@@ -119,11 +248,22 @@ async def startup_event():
             import pyttsx3
             logger.info("✅ TTS (pyttsx3) available")
         except ImportError:
-            logger.warning("⚠️  TTS not available - install with: pip install pyttsx3")
+            try:
+                import gtts
+                logger.info("✅ TTS (gtts) available")
+            except ImportError:
+                logger.warning("⚠️  TTS not available - install pyttsx3 or gtts")
+        
+        logger.info("="*70)
+        logger.info("Server ready! API docs: http://localhost:8000/docs")
+        logger.info("="*70)
+        
+        # Start rate limiter cleanup
+        asyncio.create_task(rate_limiter.cleanup())
         
     except Exception as e:
         logger.error(f"❌ Failed to load models: {e}")
-        raise
+        logger.error("Server will start but endpoints will return 503")
 
 
 @app.on_event("shutdown")
@@ -131,6 +271,7 @@ async def shutdown_event():
     """Cleanup on server shutdown"""
     logger.info("Shutting down server...")
     
+    # Cleanup temp files
     for filepath in temp_files.values():
         try:
             if Path(filepath).exists():
@@ -140,6 +281,7 @@ async def shutdown_event():
     
     temp_files.clear()
     
+    # Cleanup temp directory
     try:
         import shutil
         if Config.TEMP_DIR.exists():
@@ -153,80 +295,49 @@ async def shutdown_event():
 # ============================================================================
 
 def generate_tts_pyttsx3(text: str, output_path: str, language: str = "en"):
-    """
-    Generate TTS using pyttsx3 (offline, cross-platform)
-    """
+    """Generate TTS using pyttsx3 (offline)"""
     try:
         import pyttsx3
         
         engine = pyttsx3.init()
-        
-        # Configure voice
         voices = engine.getProperty('voices')
         
-        # Try to set appropriate voice based on language
-        if language == "en":
-            # Use first English voice (usually default)
-            if len(voices) > 0:
-                engine.setProperty('voice', voices[0].id)
+        if language == "en" and len(voices) > 0:
+            engine.setProperty('voice', voices[0].id)
         
-        # Configure speech rate and volume
-        engine.setProperty('rate', 150)    # Speed (words per minute)
-        engine.setProperty('volume', 0.9)  # Volume (0-1)
-        
-        # Save to file
+        engine.setProperty('rate', 150)
+        engine.setProperty('volume', 0.9)
         engine.save_to_file(text, output_path)
         engine.runAndWait()
         
         return True
-        
     except Exception as e:
         logger.error(f"pyttsx3 TTS failed: {e}")
         return False
 
 
 def generate_tts_gtts(text: str, output_path: str, language: str = "en"):
-    """
-    Generate TTS using gTTS (requires internet, better quality)
-    """
+    """Generate TTS using gTTS (online)"""
     try:
         from gtts import gTTS
-        
         tts = gTTS(text=text, lang=language, slow=False)
         tts.save(output_path)
-        
         return True
-        
     except Exception as e:
         logger.error(f"gTTS failed: {e}")
         return False
 
 
 def generate_tts(text: str, output_path: str, language: str = "en", method: str = "auto"):
-    """
-    Generate TTS using available method
-    
-    Args:
-        text: Text to convert to speech
-        output_path: Where to save audio file
-        language: Language code (en, es, fr, etc.)
-        method: 'pyttsx3', 'gtts', or 'auto'
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Generate TTS using available method"""
     if method == "auto":
-        # Try gTTS first (better quality), fall back to pyttsx3
         if generate_tts_gtts(text, output_path, language):
             return True
         return generate_tts_pyttsx3(text, output_path, language)
-    
     elif method == "gtts":
         return generate_tts_gtts(text, output_path, language)
-    
     elif method == "pyttsx3":
         return generate_tts_pyttsx3(text, output_path, language)
-    
     return False
 
 
@@ -244,10 +355,11 @@ async def root():
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
-            "process": "/process",
-            "enhance": "/enhance",
-            "transcribe": "/transcribe",
-            "tts": "/tts"
+            "process": "/process (POST)",
+            "enhance": "/enhance (POST)",
+            "transcribe": "/transcribe (POST)",
+            "tts": "/tts (POST)",
+            "download": "/download/{filename} (GET)"
         }
     }
 
@@ -278,25 +390,28 @@ async def health_check():
 
 @app.post("/process", response_model=ProcessResponse)
 async def process_audio(
+    request: Request,
     file: UploadFile = File(...),
     language: Optional[str] = Form(default="en"),
     skip_enhancement: Optional[str] = Form(default="false"),
     generate_tts_param: Optional[str] = Form(default="false", alias="generate_tts")
 ):
     """
-    Process audio file: enhance and transcribe
-    
-    Args:
-        file: Audio file (wav, mp3, flac, etc.)
-        language: Target language code (en, es, fr, etc.)
-        skip_enhancement: Skip enhancement step
-        generate_tts_param: Generate TTS audio from transcript
-    
-    Returns:
-        JSON with transcript, enhanced audio URL, and optional TTS URL
+    Complete pipeline: enhance + transcribe + optional TTS
     """
+    # Rate limiting
+    client_ip = get_client_ip(request)
+    if not await rate_limiter.check_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Max 10 requests per hour. Please try again later."
+        )
+    
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    # File validation
+    validate_audio_file(file)
     
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
@@ -308,17 +423,15 @@ async def process_audio(
     start_time = time.time()
     
     try:
-        # Read file
         contents = await file.read()
         
-        # Check file size
         if len(contents) > Config.MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail=f"File too large. Max size: {Config.MAX_FILE_SIZE / 1024 / 1024}MB"
+                detail=f"File too large. Max: {Config.MAX_FILE_SIZE / 1024 / 1024}MB"
             )
         
-        logger.info(f"📥 Processing file: {file.filename} ({len(contents)/1024:.1f} KB)")
+        logger.info(f"📥 Processing: {file.filename} ({len(contents)/1024:.1f} KB)")
         
         # Process audio
         result = pipeline.process(
@@ -327,19 +440,13 @@ async def process_audio(
             skip_enhancement=skip_enhancement_bool
         )
         
-        # Save enhanced audio to temporary file
+        # Save enhanced audio
         temp_filename = f"enhanced_{int(time.time())}_{file.filename}"
         if not temp_filename.endswith('.wav'):
             temp_filename = temp_filename.rsplit('.', 1)[0] + '.wav'
         
         temp_path = Config.TEMP_DIR / temp_filename
-        sf.write(
-            temp_path,
-            result['enhanced_audio'],
-            result['sample_rate']
-        )
-        
-        # Track temp file for cleanup
+        sf.write(temp_path, result['enhanced_audio'], result['sample_rate'])
         temp_files[temp_filename] = str(temp_path)
         
         enhanced_audio_url = f"/download/{temp_filename}"
@@ -353,17 +460,15 @@ async def process_audio(
             
             tts_path = Config.TEMP_DIR / tts_filename
             
-            # Generate TTS (calling the function, not the boolean!)
             if generate_tts(result['transcript'], str(tts_path), language):
                 temp_files[tts_filename] = str(tts_path)
                 tts_audio_url = f"/download/{tts_filename}"
-                logger.info(f"✅ Generated TTS audio")
+                logger.info(f"✅ Generated TTS")
             else:
                 logger.warning(f"⚠️  TTS generation failed")
         
         processing_time = time.time() - start_time
         
-        # Return results
         response = {
             "success": True,
             "transcript": result['transcript'],
@@ -375,76 +480,150 @@ async def process_audio(
             "processing_time": round(processing_time, 2)
         }
         
-        logger.info(f"✅ Processed in {processing_time:.2f}s: {file.filename}")
+        logger.info(f"✅ Processed in {processing_time:.2f}s")
         return JSONResponse(content=response)
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error processing file: {e}", exc_info=True)
+        logger.error(f"❌ Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@app.post("/enhance", response_model=EnhanceResponse)
+async def enhance_only(
+    request: Request,
+    file: UploadFile = File(...)
+):
+    """Enhancement only (no transcription)"""
+    # Rate limiting
+    client_ip = get_client_ip(request)
+    if not await rate_limiter.check_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    # File validation
+    validate_audio_file(file)
+    
+    start_time = time.time()
+    
+    try:
+        contents = await file.read()
+        
+        # Load and enhance
+        audio = pipeline.audio_processor.load_audio(contents)
+        enhanced_audio = pipeline.enhance_audio(audio)
+        
+        # Save
+        temp_filename = f"enhanced_{int(time.time())}_{file.filename}"
+        if not temp_filename.endswith('.wav'):
+            temp_filename = temp_filename.rsplit('.', 1)[0] + '.wav'
+        
+        temp_path = Config.TEMP_DIR / temp_filename
+        sf.write(temp_path, enhanced_audio, pipeline.audio_processor.sample_rate)
+        temp_files[temp_filename] = str(temp_path)
+        
+        duration = len(enhanced_audio) / pipeline.audio_processor.sample_rate
+        processing_time = time.time() - start_time
+        
+        return {
+            "success": True,
+            "enhanced_audio_url": f"/download/{temp_filename}",
+            "duration": duration,
+            "processing_time": round(processing_time, 2)
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Enhancement error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/transcribe", response_model=TranscribeResponse)
+async def transcribe_only(
+    request: Request,
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(default="en"),
+    enhance_first: Optional[str] = Form(default="true")
+):
+    """Transcription with optional enhancement"""
+    # Rate limiting
+    client_ip = get_client_ip(request)
+    if not await rate_limiter.check_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    # File validation
+    validate_audio_file(file)
+    
+    enhance_bool = enhance_first.lower() in ['true', '1', 'yes']
+    start_time = time.time()
+    
+    try:
+        contents = await file.read()
+        
+        # Load audio
+        audio = pipeline.audio_processor.load_audio(contents)
+        
+        # Optionally enhance
+        if enhance_bool:
+            audio = pipeline.enhance_audio(audio)
+        
+        # Transcribe
+        result = pipeline.transcribe_audio(audio, language)
+        
+        duration = len(audio) / pipeline.audio_processor.sample_rate
+        processing_time = time.time() - start_time
+        
+        return {
+            "success": True,
+            "transcript": result['text'].strip(),
+            "duration": duration,
+            "language": result.get('language', language),
+            "segments": result.get('segments', []),
+            "processing_time": round(processing_time, 2)
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Transcription error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/tts")
 async def text_to_speech(request: TTSRequest):
-    """
-    Convert text to speech
-    
-    Args:
-        text: Text to convert
-        language: Language code
-        voice: Voice identifier (optional)
-    
-    Returns:
-        Audio file (WAV format)
-    """
+    """Convert text to speech"""
     if not request.text:
         raise HTTPException(status_code=400, detail="No text provided")
     
     try:
-        logger.info(f"🔊 Generating TTS for text: {request.text[:50]}...")
-        
-        # Create temporary file
         temp_filename = f"tts_{int(time.time())}.wav"
         temp_path = Config.TEMP_DIR / temp_filename
         
-        # Generate TTS
         if not generate_tts(request.text, str(temp_path), request.language):
             raise HTTPException(
                 status_code=500,
-                detail="TTS generation failed. Make sure pyttsx3 or gtts is installed."
+                detail="TTS failed. Install pyttsx3 or gtts."
             )
         
-        logger.info(f"✅ Generated TTS: {temp_filename}")
-        
-        # Return file
         return FileResponse(
             temp_path,
             media_type="audio/wav",
-            filename=temp_filename,
-            headers={
-                "Content-Disposition": f'attachment; filename="{temp_filename}"'
-            }
+            filename=temp_filename
         )
     
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error generating TTS: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+        logger.error(f"❌ TTS error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    """
-    Download enhanced or TTS audio file
-    
-    Args:
-        filename: Temporary file name
-    
-    Returns:
-        Audio file (WAV format)
-    """
+    """Download processed audio file"""
     if filename not in temp_files:
         raise HTTPException(status_code=404, detail="File not found or expired")
     
@@ -456,32 +635,40 @@ async def download_file(filename: str):
     return FileResponse(
         file_path,
         media_type="audio/wav",
-        filename=filename,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        filename=filename
     )
 
 
-# Keep other endpoints (enhance, transcribe, cleanup) from original app.py
+@app.delete("/cleanup/{filename}")
+async def cleanup_file(filename: str):
+    """Manually cleanup a temporary file"""
+    if filename not in temp_files:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    try:
+        file_path = Path(temp_files[filename])
+        if file_path.exists():
+            os.remove(file_path)
+        del temp_files[filename]
+        return {"success": True, "message": "File deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
     import uvicorn
     
     print("="*70)
-    print("🎙️  ClearSpeech API Server with TTS")
+    print("🎙️  ClearSpeech API Server")
     print("="*70)
     print(f"CNN Model: {Config.CNN_CHECKPOINT}")
     print(f"Whisper: {Config.WHISPER_MODEL}")
     print(f"Device: {Config.DEVICE}")
-    print(f"TTS: Available")
     print("="*70)
     
     uvicorn.run(
-        "backend.app:app",
+        app,
         host="0.0.0.0",
         port=8000,
-        reload=True,
         log_level="info"
     )
