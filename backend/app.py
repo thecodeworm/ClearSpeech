@@ -17,6 +17,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 import asyncio
+from huggingface_hub import hf_hub_download
 
 # IMPORTANT: Use relative import for package
 try:
@@ -140,37 +141,78 @@ def validate_audio_file(file: UploadFile) -> None:
 
 # Configuration
 class Config:
-    # FIXED: Use the correct trained model checkpoint
-    CNN_CHECKPOINT = (BASE_DIR / "../enhancement_model/checkpoints/best_model_fixed.pt").resolve()
-    WHISPER_MODEL = "base"
-    DEVICE = "cpu"  # Change to "cuda" or "mps" if you have GPU
+    # ⭐ Hugging Face Hub Configuration
+    # UPDATE THIS with your HF repository ID
+    HF_REPO_ID = os.getenv("HF_REPO_ID", "YOUR_USERNAME/clearspeech-model")
+    HF_CHECKPOINT_FILENAME = "best_model_fixed.pt"
+    
+    # Local paths (checkpoint downloaded from HF Hub)
+    CHECKPOINT_DIR = Path(tempfile.gettempdir()) / "clearspeech_models"
+    CNN_CHECKPOINT = CHECKPOINT_DIR / HF_CHECKPOINT_FILENAME
+    
+    # Model configuration
+    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+    DEVICE = os.getenv("DEVICE", "cpu")
     USE_FP16 = False
-    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    
+    # Limits
+    MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 50 * 1024 * 1024))
     TEMP_DIR = Path(tempfile.gettempdir()) / "clearspeech"
     
     @classmethod
     def setup(cls):
+        """Setup: Download checkpoint from Hugging Face Hub"""
         cls.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        cls.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Verify checkpoint exists
+        # Check if we need to download from HF Hub
         if not cls.CNN_CHECKPOINT.exists():
-            logger.warning(f"⚠️  Checkpoint not found: {cls.CNN_CHECKPOINT}")
-            logger.warning(f"   Looking for alternative checkpoints...")
+            logger.info("="*70)
+            logger.info("📥 Downloading model checkpoint from Hugging Face Hub")
+            logger.info("="*70)
+            logger.info(f"Repository: {cls.HF_REPO_ID}")
+            logger.info(f"Filename: {cls.HF_CHECKPOINT_FILENAME}")
             
-            # Try alternative names
-            checkpoint_dir = cls.CNN_CHECKPOINT.parent
-            alternatives = [
-                "best_model.pt",
-                "best_model_perceptual.pt",
-                "final_model_fixed.pt"
-            ]
+            if cls.HF_REPO_ID == "YOUR_USERNAME/clearspeech-model":
+                raise ValueError(
+                    "Please update HF_REPO_ID in Config or set environment variable:\n"
+                    "export HF_REPO_ID='your-username/your-repo-name'"
+                )
             
-            for alt in alternatives:
-                alt_path = checkpoint_dir / alt
-                if alt_path.exists():
-                    logger.info(f"✅ Found alternative: {alt}")
-                    cls.CNN_CHECKPOINT = alt_path
-                    break
+            try:
+                # Download from Hugging Face Hub
+                downloaded_path = hf_hub_download(
+                    repo_id=cls.HF_REPO_ID,
+                    filename=cls.HF_CHECKPOINT_FILENAME,
+                    cache_dir=str(cls.CHECKPOINT_DIR.parent),
+                    local_dir=str(cls.CHECKPOINT_DIR),
+                    local_dir_use_symlinks=False
+                )
+                
+                cls.CNN_CHECKPOINT = Path(downloaded_path)
+                logger.info(f"✅ Checkpoint downloaded successfully!")
+                logger.info(f"   Saved to: {cls.CNN_CHECKPOINT}")
+                logger.info("="*70)
+                
+            except Exception as e:
+                logger.error("="*70)
+                logger.error("❌ Failed to download checkpoint from Hugging Face Hub")
+                logger.error("="*70)
+                logger.error(f"Error: {e}")
+                logger.error("")
+                logger.error("Please check:")
+                logger.error(f"  1. Repository ID is correct: {cls.HF_REPO_ID}")
+                logger.error(f"  2. Repository is public (or set HF_TOKEN)")
+                logger.error(f"  3. Filename exists: {cls.HF_CHECKPOINT_FILENAME}")
+                logger.error("")
+                logger.error("To fix:")
+                logger.error("  export HF_REPO_ID='your-username/clearspeech-model'")
+                logger.error("  # or for private repos:")
+                logger.error("  export HF_TOKEN='hf_...'")
+                logger.error("="*70)
+                raise
+        else:
+            logger.info(f"✅ Using cached checkpoint: {cls.CNN_CHECKPOINT}")
 
 
 # Response models
