@@ -40,16 +40,12 @@ ClearSpeech uses a custom U-Net deep learning model to remove background noise f
 ```
 git clone https://github.com/yourusername/ClearSpeech.git
 cd ClearSpeech
-python -m venv venv
-source venv/bin/activate
-pip install -r backend/requirements.txt
-pip install -r enhancement_model/requirements.txt
 ```
 
 ### Step 2: Create Virtual Environment
 ```
 # Create environment 
-python -m venv venv 
+python3.10 -m venv venv 
 # Activate (macOS/Linux) 
 source venv/bin/activate 
 # Activate (Windows) 
@@ -57,17 +53,11 @@ venv\Scripts\activate
 ```
 ### Step 3: Install Dependencies
 ```
-# Install backend dependencies 
-pip install -r backend/requirements.txt 
-
-# Install enhancement model dependencies 
-pip install -r enhancement_model/requirements.txt
+# Install dependencies
+pip install -r requirements.txt
 ```
 ### Step 4: Download Pretrained Model
 ```
-# Install huggingface-hub
-pip install huggingface-hub
-
 # Download model
 python -c "
 from huggingface_hub import hf_hub_download
