@@ -19,3 +19,5 @@ matplotlib>=3.7.0
 https://github.com/ludlows/python-pesq/archive/master.zip
 pystoi>=0.3.0
 datasets>=2.13.1
+pyttsx3>=2.90
+gtts>=2.3.2
