@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // =====================
     // API Configuration
     // =====================
-    const API_URL = 'http://localhost:8000';  // TODO: Change to deployed URL in production
+    const API_URL = 'http://localhost:8000';
 
     // =====================
     // State management
@@ -24,6 +24,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultsSection = document.getElementById('resultsSection');
     const transcriptionResult = document.getElementById('transcriptionResult');
     const audioResult = document.getElementById('audioResult');
+    const ttsToggle = document.getElementById('ttsToggle'); // NEW
+    const audioPlayerContainer = document.getElementById('audioPlayerContainer'); // NEW
 
     // =====================
     // Navigation
@@ -37,11 +39,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const targetId = link.getAttribute('href').substring(1);
 
-            // Update nav link state
             navLinks.forEach(l => l.classList.remove('active'));
             link.classList.add('active');
 
-            // Toggle sections
             sections.forEach(section => {
                 section.classList.toggle('active', section.id === targetId);
             });
@@ -98,12 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.onRecordingComplete = async (audioBlob) => {
         try {
-            // Convert webm/ogg blob to WAV using Web Audio API
             const arrayBuffer = await audioBlob.arrayBuffer();
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             
-            // Convert to WAV
             const wavBlob = await audioBufferToWav(audioBuffer);
             
             recordedAudio = new File([wavBlob], 'recording.wav', { type: 'audio/wav' });
@@ -126,13 +124,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = new FormData();
         formData.append('file', audioData);
         formData.append('language', 'en');
+        formData.append('generate_tts', ttsToggle.checked); // NEW: Send TTS preference
 
         loading.classList.add('active');
         resultsSection.classList.remove('active');
         processButton.disabled = true;
 
         try {
-            // Call your ClearSpeech backend API
             const response = await fetch(`${API_URL}/process`, {
                 method: 'POST',
                 body: formData
@@ -151,19 +149,40 @@ document.addEventListener("DOMContentLoaded", () => {
             transcriptionResult.textContent = data.transcript;
             transcriptionResult.parentElement.style.display = 'block';
 
-            // Set up enhanced audio player
-            const audioElement = audioResult.querySelector('audio');
-            audioElement.src = `${API_URL}${data.enhanced_audio_url}`;
+            // Clear previous audio players
+            audioPlayerContainer.innerHTML = '';
+
+            // Create enhanced audio player
+            const enhancedContainer = document.createElement('div');
+            enhancedContainer.className = 'audio-option';
+            enhancedContainer.innerHTML = `
+                <h3>Enhanced Original Audio</h3>
+                <audio controls style="width: 100%; margin-bottom: 8px;">
+                    <source src="${API_URL}${data.enhanced_audio_url}" type="audio/wav">
+                </audio>
+                <button class="download-button" onclick="downloadAudio('${API_URL}${data.enhanced_audio_url}', 'enhanced_audio.wav')">
+                    Download Enhanced Audio
+                </button>
+            `;
+            audioPlayerContainer.appendChild(enhancedContainer);
+
+            // Create TTS audio player if available
+            if (data.tts_audio_url) {
+                const ttsContainer = document.createElement('div');
+                ttsContainer.className = 'audio-option';
+                ttsContainer.innerHTML = `
+                    <h3>Text-to-Speech Version</h3>
+                    <audio controls style="width: 100%; margin-bottom: 8px;">
+                        <source src="${API_URL}${data.tts_audio_url}" type="audio/wav">
+                    </audio>
+                    <button class="download-button" onclick="downloadAudio('${API_URL}${data.tts_audio_url}', 'tts_audio.wav')">
+                        Download TTS Audio
+                    </button>
+                `;
+                audioPlayerContainer.appendChild(ttsContainer);
+            }
+
             audioResult.style.display = 'block';
-
-            // Setup download button
-            document.getElementById('downloadButton').onclick = () => {
-                const a = document.createElement('a');
-                a.href = `${API_URL}${data.enhanced_audio_url}`;
-                a.download = 'enhanced_audio.wav';
-                a.click();
-            };
-
             resultsSection.classList.add('active');
 
         } catch (err) {
@@ -176,13 +195,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =====================
+    // Download Helper
+    // =====================
+    window.downloadAudio = function(url, filename) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+    };
+
+    // =====================
     // Helper Functions for WAV Conversion
     // =====================
     
     function audioBufferToWav(audioBuffer) {
         const numberOfChannels = audioBuffer.numberOfChannels;
         const sampleRate = audioBuffer.sampleRate;
-        const format = 1; // PCM
+        const format = 1;
         const bitDepth = 16;
         
         const bytesPerSample = bitDepth / 8;
@@ -198,7 +227,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const buffer = new ArrayBuffer(44 + dataLength);
         const view = new DataView(buffer);
         
-        // Write WAV header
         writeString(view, 0, 'RIFF');
         view.setUint32(4, 36 + dataLength, true);
         writeString(view, 8, 'WAVE');
@@ -213,7 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
         writeString(view, 36, 'data');
         view.setUint32(40, dataLength, true);
         
-        // Write audio data
         floatTo16BitPCM(view, 44, interleaved);
         
         return new Blob([buffer], { type: 'audio/wav' });

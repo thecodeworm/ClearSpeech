@@ -516,3 +516,73 @@ footer {
 .feature_list {
     font-size: 50;
 }
+
+/* Add these styles to your existing styles.css */
+
+/* TTS Toggle Option */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text);
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.3s;
+}
+
+.checkbox-label:hover {
+    background: var(--background);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.checkbox-label span {
+    flex: 1;
+}
+
+/* Audio Container */
+.audio-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-top: 16px;
+}
+
+.audio-option {
+    background: var(--background);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.audio-option h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.audio-option audio {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.audio-option .download-button {
+    width: 100%;
+}
+
+/* Responsive layout for audio options */
+@media (min-width: 768px) {
+    .audio-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+}
