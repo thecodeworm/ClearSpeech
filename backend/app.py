@@ -143,8 +143,8 @@ def validate_audio_file(file: UploadFile) -> None:
 class Config:
     # ⭐ Hugging Face Hub Configuration
     # UPDATE THIS with your HF repository ID
-    HF_REPO_ID = os.getenv("HF_REPO_ID", "YOUR_USERNAME/clearspeech-model")
-    HF_CHECKPOINT_FILENAME = "best_model_fixed.pt"
+    HF_REPO_ID = os.getenv("HF_REPO_ID", "thecodeworm/clearspeech-unet")
+    HF_CHECKPOINT_FILENAME = "best_model.pt"
     
     # Local paths (checkpoint downloaded from HF Hub)
     CHECKPOINT_DIR = Path(tempfile.gettempdir()) / "clearspeech_models"
