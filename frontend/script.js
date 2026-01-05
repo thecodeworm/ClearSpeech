@@ -3,10 +3,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // =====================
     // API Configuration
     // =====================
-   const API_URL = process.env.VITE_API_URL || 
-                window.location.hostname === 'localhost' 
-                ? 'http://localhost:8000'
-                : 'https://thecodeworm-clearspeechapi.hf.space';
+   const API_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:8000"
+    : "https://thecodeworm-clearspeechapi.hf.space";
+
 
     // =====================
     // State management
