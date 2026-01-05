@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: clearspeech-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd backend && uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: HF_REPO_ID
+        value: thecodeworm/clearspeech-unet
+      - key: DEVICE
+        value: cpu
+    plan: free
+    region: oregon
