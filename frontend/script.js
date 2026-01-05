@@ -3,9 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // =====================
     // API Configuration
     // =====================
-   const API_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8000'  // Local dev
-    : 'https://thecodeworm-clearspeechapi.hf.space/';  // Production
+   const API_URL = process.env.VITE_API_URL || 
+                window.location.hostname === 'localhost' 
+                ? 'http://localhost:8000'
+                : 'https://clearspeech-api.onrender.com';
 
     // =====================
     // State management
