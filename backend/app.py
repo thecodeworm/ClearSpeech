@@ -1,5 +1,5 @@
 """
-FastAPI Backend - DEPLOYMENT READY
+FastAPI Backend for Hugging Face Spaces
 Provides REST API endpoints for audio processing + Text-to-Speech
 """
 
@@ -19,14 +19,8 @@ from datetime import datetime, timedelta
 import asyncio
 from huggingface_hub import hf_hub_download
 
-# IMPORTANT: Use relative import for package
-try:
-    from .inference_pipeline import EnhancementPipeline
-except ImportError:
-    # Fallback for direct execution
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent))
-    from inference_pipeline import EnhancementPipeline
+# Direct import (no 'backend.' prefix for HF Spaces)
+from inference_pipeline import EnhancementPipeline
 
 # Setup logging
 logging.basicConfig(
@@ -75,7 +69,7 @@ temp_files = {}
 
 class SimpleRateLimiter:
     """Simple in-memory rate limiter for demo protection"""
-    def __init__(self, max_requests: int = 10, window_minutes: int = 60):
+    def __init__(self, max_requests: int = 20, window_minutes: int = 60):
         self.max_requests = max_requests
         self.window = timedelta(minutes=window_minutes)
         self.requests = defaultdict(list)
@@ -106,7 +100,7 @@ class SimpleRateLimiter:
                         del self.requests[ip]
 
 
-rate_limiter = SimpleRateLimiter(max_requests=10, window_minutes=60)
+rate_limiter = SimpleRateLimiter(max_requests=20, window_minutes=60)
 
 
 def get_client_ip(request: Request) -> str:
@@ -141,17 +135,17 @@ def validate_audio_file(file: UploadFile) -> None:
 
 # Configuration
 class Config:
-    # ⭐ Hugging Face Hub Configuration
-    # UPDATE THIS with your HF repository ID
-    HF_REPO_ID = os.getenv("HF_REPO_ID", "thecodeworm/clearspeech-unet")
-    HF_CHECKPOINT_FILENAME = "best_model.pt"
+    # Hugging Face Hub Configuration
+    # ⚠️ CHANGE THIS to your actual HF model repository!
+    HF_REPO_ID = os.getenv("HF_REPO_ID", "YOUR_USERNAME/clearspeech-model")
+    HF_CHECKPOINT_FILENAME = "best_model_fixed.pt"
     
-    # Local paths (checkpoint downloaded from HF Hub)
+    # Local paths
     CHECKPOINT_DIR = Path(tempfile.gettempdir()) / "clearspeech_models"
     CNN_CHECKPOINT = CHECKPOINT_DIR / HF_CHECKPOINT_FILENAME
     
     # Model configuration
-    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # Can use 'base' with 16GB RAM!
     DEVICE = os.getenv("DEVICE", "cpu")
     USE_FP16 = False
     
@@ -165,7 +159,7 @@ class Config:
         cls.TEMP_DIR.mkdir(parents=True, exist_ok=True)
         cls.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Check if we need to download from HF Hub
+        # Download from HF Hub if not exists
         if not cls.CNN_CHECKPOINT.exists():
             logger.info("="*70)
             logger.info("📥 Downloading model checkpoint from Hugging Face Hub")
@@ -173,14 +167,7 @@ class Config:
             logger.info(f"Repository: {cls.HF_REPO_ID}")
             logger.info(f"Filename: {cls.HF_CHECKPOINT_FILENAME}")
             
-            if cls.HF_REPO_ID == "YOUR_USERNAME/clearspeech-model":
-                raise ValueError(
-                    "Please update HF_REPO_ID in Config or set environment variable:\n"
-                    "export HF_REPO_ID='your-username/your-repo-name'"
-                )
-            
             try:
-                # Download from Hugging Face Hub
                 downloaded_path = hf_hub_download(
                     repo_id=cls.HF_REPO_ID,
                     filename=cls.HF_CHECKPOINT_FILENAME,
@@ -196,20 +183,10 @@ class Config:
                 
             except Exception as e:
                 logger.error("="*70)
-                logger.error("❌ Failed to download checkpoint from Hugging Face Hub")
+                logger.error("❌ Failed to download checkpoint")
                 logger.error("="*70)
                 logger.error(f"Error: {e}")
-                logger.error("")
-                logger.error("Please check:")
-                logger.error(f"  1. Repository ID is correct: {cls.HF_REPO_ID}")
-                logger.error(f"  2. Repository is public (or set HF_TOKEN)")
-                logger.error(f"  3. Filename exists: {cls.HF_CHECKPOINT_FILENAME}")
-                logger.error("")
-                logger.error("To fix:")
-                logger.error("  export HF_REPO_ID='your-username/clearspeech-model'")
-                logger.error("  # or for private repos:")
-                logger.error("  export HF_TOKEN='hf_...'")
-                logger.error("="*70)
+                logger.error(f"Please verify HF_REPO_ID: {cls.HF_REPO_ID}")
                 raise
         else:
             logger.info(f"✅ Using cached checkpoint: {cls.CNN_CHECKPOINT}")
@@ -262,16 +239,13 @@ class HealthResponse(BaseModel):
 async def startup_event():
     """Load models on server startup"""
     global pipeline
-    logger.info("🚀 Starting ClearSpeech API Server...")
+    logger.info("🚀 Starting ClearSpeech API Server on Hugging Face Spaces...")
     
     try:
         Config.setup()
         
         if not Config.CNN_CHECKPOINT.exists():
-            raise FileNotFoundError(
-                f"CNN checkpoint not found: {Config.CNN_CHECKPOINT}\n"
-                f"Please train the model first or place a checkpoint at this location."
-            )
+            raise FileNotFoundError(f"Checkpoint not found: {Config.CNN_CHECKPOINT}")
         
         pipeline = EnhancementPipeline(
             cnn_checkpoint_path=str(Config.CNN_CHECKPOINT),
@@ -285,19 +259,15 @@ async def startup_event():
         logger.info(f"📍 Whisper Model: {Config.WHISPER_MODEL}")
         logger.info(f"📍 Device: {Config.DEVICE}")
         
-        # Check TTS availability
+        # Check TTS
         try:
-            import pyttsx3
-            logger.info("✅ TTS (pyttsx3) available")
+            import gtts
+            logger.info("✅ TTS (gtts) available")
         except ImportError:
-            try:
-                import gtts
-                logger.info("✅ TTS (gtts) available")
-            except ImportError:
-                logger.warning("⚠️  TTS not available - install pyttsx3 or gtts")
+            logger.warning("⚠️  TTS not available")
         
         logger.info("="*70)
-        logger.info("Server ready! API docs: http://localhost:8000/docs")
+        logger.info("Server ready! Visit /docs for API documentation")
         logger.info("="*70)
         
         # Start rate limiter cleanup
@@ -305,7 +275,7 @@ async def startup_event():
         
     except Exception as e:
         logger.error(f"❌ Failed to load models: {e}")
-        logger.error("Server will start but endpoints will return 503")
+        raise
 
 
 @app.on_event("shutdown")
@@ -313,7 +283,6 @@ async def shutdown_event():
     """Cleanup on server shutdown"""
     logger.info("Shutting down server...")
     
-    # Cleanup temp files
     for filepath in temp_files.values():
         try:
             if Path(filepath).exists():
@@ -322,44 +291,14 @@ async def shutdown_event():
             logger.warning(f"Failed to cleanup {filepath}: {e}")
     
     temp_files.clear()
-    
-    # Cleanup temp directory
-    try:
-        import shutil
-        if Config.TEMP_DIR.exists():
-            shutil.rmtree(Config.TEMP_DIR)
-    except Exception as e:
-        logger.warning(f"Failed to cleanup temp directory: {e}")
 
 
 # ============================================================================
 # TTS FUNCTIONS
 # ============================================================================
 
-def generate_tts_pyttsx3(text: str, output_path: str, language: str = "en"):
-    """Generate TTS using pyttsx3 (offline)"""
-    try:
-        import pyttsx3
-        
-        engine = pyttsx3.init()
-        voices = engine.getProperty('voices')
-        
-        if language == "en" and len(voices) > 0:
-            engine.setProperty('voice', voices[0].id)
-        
-        engine.setProperty('rate', 150)
-        engine.setProperty('volume', 0.9)
-        engine.save_to_file(text, output_path)
-        engine.runAndWait()
-        
-        return True
-    except Exception as e:
-        logger.error(f"pyttsx3 TTS failed: {e}")
-        return False
-
-
 def generate_tts_gtts(text: str, output_path: str, language: str = "en"):
-    """Generate TTS using gTTS (online)"""
+    """Generate TTS using gTTS"""
     try:
         from gtts import gTTS
         tts = gTTS(text=text, lang=language, slow=False)
@@ -370,17 +309,9 @@ def generate_tts_gtts(text: str, output_path: str, language: str = "en"):
         return False
 
 
-def generate_tts(text: str, output_path: str, language: str = "en", method: str = "auto"):
-    """Generate TTS using available method"""
-    if method == "auto":
-        if generate_tts_gtts(text, output_path, language):
-            return True
-        return generate_tts_pyttsx3(text, output_path, language)
-    elif method == "gtts":
-        return generate_tts_gtts(text, output_path, language)
-    elif method == "pyttsx3":
-        return generate_tts_pyttsx3(text, output_path, language)
-    return False
+def generate_tts(text: str, output_path: str, language: str = "en"):
+    """Generate TTS"""
+    return generate_tts_gtts(text, output_path, language)
 
 
 # ============================================================================
@@ -394,6 +325,7 @@ async def root():
         "status": "online",
         "message": "ClearSpeech API - Speech Enhancement, Transcription & TTS",
         "version": "2.1.0",
+        "platform": "Hugging Face Spaces",
         "endpoints": {
             "docs": "/docs",
             "health": "/health",
@@ -411,14 +343,10 @@ async def health_check():
     """Detailed health check"""
     tts_available = False
     try:
-        import pyttsx3
+        import gtts
         tts_available = True
     except ImportError:
-        try:
-            import gtts
-            tts_available = True
-        except ImportError:
-            pass
+        pass
     
     return {
         "status": "healthy" if pipeline is not None else "unhealthy",
@@ -438,15 +366,13 @@ async def process_audio(
     skip_enhancement: Optional[str] = Form(default="false"),
     generate_tts_param: Optional[str] = Form(default="false", alias="generate_tts")
 ):
-    """
-    Complete pipeline: enhance + transcribe + optional TTS
-    """
+    """Complete pipeline: enhance + transcribe + optional TTS"""
     # Rate limiting
     client_ip = get_client_ip(request)
     if not await rate_limiter.check_rate_limit(client_ip):
         raise HTTPException(
             status_code=429,
-            detail="Rate limit exceeded. Max 10 requests per hour. Please try again later."
+            detail="Rate limit exceeded. Max 20 requests per hour."
         )
     
     if pipeline is None:
@@ -454,9 +380,6 @@ async def process_audio(
     
     # File validation
     validate_audio_file(file)
-    
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
     
     # Convert string parameters to boolean
     skip_enhancement_bool = skip_enhancement.lower() in ['true', '1', 'yes']
@@ -647,7 +570,7 @@ async def text_to_speech(request: TTSRequest):
         if not generate_tts(request.text, str(temp_path), request.language):
             raise HTTPException(
                 status_code=500,
-                detail="TTS failed. Install pyttsx3 or gtts."
+                detail="TTS failed. Install gtts."
             )
         
         return FileResponse(
@@ -700,17 +623,10 @@ async def cleanup_file(filename: str):
 if __name__ == "__main__":
     import uvicorn
     
-    print("="*70)
-    print("🎙️  ClearSpeech API Server")
-    print("="*70)
-    print(f"CNN Model: {Config.CNN_CHECKPOINT}")
-    print(f"Whisper: {Config.WHISPER_MODEL}")
-    print(f"Device: {Config.DEVICE}")
-    print("="*70)
-    
+    # HF Spaces uses port 7860
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=7860,
         log_level="info"
     )
