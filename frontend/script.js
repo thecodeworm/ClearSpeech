@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
    const API_URL = process.env.VITE_API_URL || 
                 window.location.hostname === 'localhost' 
                 ? 'http://localhost:8000'
-                : 'https://clearspeech-api.onrender.com';
+                : 'https://thecodeworm-clearspeechapi.hf.space';
 
     // =====================
     // State management
