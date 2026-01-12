@@ -274,7 +274,7 @@ black backend/ enhancement_model/
 -   **Training Data**: [LibriSpeech](http://www.openslr.org/12/), [MS-SNSD](https://github.com/microsoft/MS-SNSD)
 
 ## 📧 Contact
-**Project Maintainers**: Aditya Chanda, Josh Pal, Advik Kumar Singh
+**Project Maintainer**: Aditya Chanda
 
 **Project Link**: [https://github.com/thecodeworm/ClearSpeech](https://github.com/thecodeworm/ClearSpeech)
 
