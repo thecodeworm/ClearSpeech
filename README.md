@@ -4,7 +4,7 @@
 
 ClearSpeech uses a custom U-Net deep learning model to remove background noise from audio, then transcribes the enhanced audio using OpenAI's Whisper. Perfect for cleaning up voice recordings, meeting audio, podcasts, or any noisy speech.
 
-**🌐 Live Website:** [Visit ClearSpeech](https://www.clearspeech.app)
+**🌐 Live Website:** <a href="https://www.clearspeech.app" target="_blank" rel="noopener noreferrer">Visit ClearSpeech</a>
 
 
 ## 🌟 Features
