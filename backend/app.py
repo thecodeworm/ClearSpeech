@@ -69,7 +69,7 @@ temp_files = {}
 
 class SimpleRateLimiter:
     """Simple in-memory rate limiter for demo protection"""
-    def __init__(self, max_requests: int = 20, window_minutes: int = 60):
+    def __init__(self, max_requests: int = 100, window_minutes: int = 60):
         self.max_requests = max_requests
         self.window = timedelta(minutes=window_minutes)
         self.requests = defaultdict(list)
@@ -144,7 +144,7 @@ class Config:
     CNN_CHECKPOINT = CHECKPOINT_DIR / HF_CHECKPOINT_FILENAME
     
     # Model configuration
-    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # Can use 'base' with 16GB RAM!
+    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
     DEVICE = os.getenv("DEVICE", "cpu")
     USE_FP16 = False
     
