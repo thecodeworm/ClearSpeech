@@ -176,3 +176,6 @@ temp/
 # Metadata generated during processing
 metadata.json
 stats.json
+
+# Test files
+frontend/test_files
