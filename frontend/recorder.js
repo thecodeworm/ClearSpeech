@@ -31,11 +31,7 @@
                 }
 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    } 
+                    audio: true
                 });
 
                 // Check if MediaRecorder is supported
@@ -43,11 +39,19 @@
                     console.warn('audio/webm not supported, using default');
                 }
 
-                mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: MediaRecorder.isTypeSupported('audio/webm') 
-                        ? 'audio/webm' 
-                        : 'audio/ogg'
-                });
+                let options = {};
+
+                if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    options.mimeType = 'audio/webm';
+                } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                    options.mimeType = 'audio/ogg';
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    options.mimeType = 'audio/mp4';
+                } else {
+                    options = {}; // let browser choose default
+                }
+
+                mediaRecorder = new MediaRecorder(stream, options);
 
                 audioChunks = [];
 
