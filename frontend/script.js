@@ -50,9 +50,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 section.classList.toggle('active', section.id === targetId);
             });
 
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navMenu.classList.remove('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });  
         });
     });
+
+    // =====================
+    // Mobile Hamburger Nav
+    // =====================
+    const hamburger = document.getElementById('hamburger');
+    const navMenu = document.getElementById('navMenu');
+
+    hamburger.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+    });
+
 
     // =====================
     // Upload handling

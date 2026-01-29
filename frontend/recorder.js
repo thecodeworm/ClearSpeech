@@ -19,6 +19,17 @@
 
         startRecording: async function() {
             try {
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        alert(
+                        "Microphone recording is not supported on this browser or requires HTTPS.\n\n" +
+                        "Please use:\n" +
+                        "• Chrome / Edge\n" +
+                        "• Safari on iOS 14+\n" +
+                        "• HTTPS connection"
+                        );
+                        return;
+                }
+
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: true,

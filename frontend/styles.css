@@ -586,3 +586,52 @@ footer {
         gap: 20px;
     }
 }
+
+/* =========================
+   MOBILE HAMBURGER NAV
+   ========================= */
+
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--primary);
+}
+
+/* Mobile behavior */
+@media (max-width: 768px) {
+
+    .header-content {
+        position: relative;
+    }
+
+    nav {
+        position: absolute;
+        top: 80px;
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        flex-direction: column;
+        display: none;
+        box-shadow: var(--shadow-lg);
+        border-top: 1px solid var(--border);
+        z-index: 99;
+    }
+
+    nav.active {
+        display: flex;
+    }
+
+    nav a {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        text-align: center;
+        font-size: 16px;
+    }
+
+    .hamburger {
+        display: block;
+    }
+}
